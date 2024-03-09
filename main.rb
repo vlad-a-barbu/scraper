@@ -2,7 +2,7 @@
 
 require 'selenium-webdriver'
 
-# simple driver
+# simple web driver wrapper
 class Driver
   def initialize
     @driver = Selenium::WebDriver.for :chrome
@@ -34,27 +34,30 @@ class Task
   end
 end
 
-# base task with execution args
-class LazyTask
-  def initialize(driver, task, args)
-    @task = task.new driver
-    @args = args
-  end
-
-  def invoke
-    @task.execute(*@args)
-  end
-end
-
-# web tasks automation workflow
+# web automation workflow
 class Workflow
-  def initialize(lazy_tasks)
-    driver = Driver.new
-    @lazy_tasks = lazy_tasks.map { |lazy_task| LazyTask.new driver, *lazy_task }
+  def initialize
+    @driver = Driver.new
+    @tasks = []
+  end
+
+  def add(task, args)
+    @tasks << [(task.new @driver), args]
   end
 
   def execute
-    @lazy_tasks.each(&:invoke)
+    @tasks.each { |task, args| task.execute(*args) }
+  end
+end
+
+# runtime user defined task
+class CustomTask < Task
+  def execute(*actions)
+    actions.each do |method, *args|
+      raise ArgumentError "unknown action type: #{method}" unless @driver.respond_to?(method)
+
+      @driver.send(method, *args)
+    end
   end
 end
 
@@ -77,8 +80,21 @@ class LinkedinLogin < Task
   end
 end
 
-job_search_wf = Workflow.new [
-  [LinkedinLogin, [:credentials, 'email@gmail.com', 'password']]
-]
-job_search_wf.execute
+def static_workflow_example
+  job_search_wf = Workflow.new
+  job_search_wf.add(LinkedinLogin, [:credentials, 'test@email.com', 'pass'])
+  job_search_wf.execute
+end
 
+def runtime_workflow_example
+  # custom task actions
+  login_actions = []
+  login_actions << [:navigate, 'https://www.linkedin.com']
+  login_actions << [:write_to, '//*[@id="session_key"]', 'test@email.com']
+  login_actions << [:write_to, '//*[@id="session_password"]', 'pass']
+  login_actions << [:click, '//*[@id="main-content"]/section[1]/div/div/form/div[2]/button']
+
+  job_search_wf = Workflow.new
+  job_search_wf.add(CustomTask, login_actions)
+  job_search_wf.execute
+end
