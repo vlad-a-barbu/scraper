@@ -73,6 +73,7 @@ class Task
 
     return unless send?(type, index)
 
+    puts "executing task #{@id} action #{index + 1}"
     send(type, *args)
     @execution[index] = true
   rescue DriverError => e
@@ -122,18 +123,26 @@ class Workflow
 end
 
 # example workflow config
-def read_article_actions(article_id)
-  [
-    [:driver, :navigate, 'https://www.biziday.ro/'],
-
-    [:driver, :click, "//*[@id=\"main\"]/ul/li[#{article_id}]/a"],
-
-    [:collect, "article#{article_id}", '//*[@id="main"]/div/h1']
-  ]
+def collect_actions(page)
+  (1..50).map do |id|
+    [
+      :collect,
+      "movie#{(page - 1) * 50 + id}",
+      "//*[@id=\"pmc-gallery-vertical\"]/div[#{page < 2 ? 1 : 2}]/div/div[#{id}]/article/div[1]/div/h2"
+    ]
+  end
 end
 
 wf = Workflow.new
-(1..5).each { |id| wf.add(read_article_actions(id)) }
+wf.add([
+         [:driver, :navigate, 'https://www.rollingstone.com/tv-movies/tv-movie-lists/best-sci-fi-movies-1234893930/tank-girl-1995-2-1234928496/'],
+         [:driver, :click, '//*[@id="onetrust-accept-btn-handler"]']
+       ])
+wf.add(collect_actions(1))
+wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[2]/a']])
+wf.add(collect_actions(2))
+wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[3]/a']])
+wf.add(collect_actions(3))
 wf.execute
 puts wf.state
 
