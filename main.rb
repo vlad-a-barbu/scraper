@@ -2,11 +2,11 @@
 
 require 'selenium-webdriver'
 
-# driver failed to find element
-class ElementNotFoundError < StandardError
+# web driver error
+class DriverError < StandardError
   attr_reader :xpath
 
-  def initialize(msg = 'element not found', xpath = nil)
+  def initialize(msg, xpath = nil)
     @xpath = xpath
     super(msg)
   end
@@ -16,7 +16,7 @@ end
 class Driver
   def initialize(opts = {})
     @driver = Selenium::WebDriver.for(opts.fetch(:type, :chrome))
-    @wait = Selenium::WebDriver::Wait.new(timeout: opts.fetch(:timeout, 10))
+    @wait = Selenium::WebDriver::Wait.new(timeout: opts.fetch(:timeout, 3))
   end
 
   def navigate(url)
@@ -41,8 +41,7 @@ class Driver
       return element if element.displayed?
     end
   rescue Selenium::WebDriver::Error::TimeoutError
-    puts "element not found at xpath: #{xpath}"
-    raise ElementNotFoundError(xpath:) unless silent
+    raise DriverError.new("element not found at xpath: #{xpath}", xpath) unless silent
 
     nil
   end
@@ -59,11 +58,22 @@ class Task
 
   def execute
     @execution = {}
-    @actions.each do |type, *args|
-      raise ArgumentError("unknown action type: #{type}") unless respond_to?(type)
+    @actions.each_with_index { |action, index| execute_action(action, index) }
+  end
 
-      send(type, *args)
-    end
+  def execute_action(action, index)
+    type, *args = action
+    raise ArgumentError("unknown action type: #{type}") unless respond_to?(type)
+
+    send(type, *args) if send?(type, index)
+    @execution[index] = true
+  rescue DriverError => e
+    puts "action #{index} failed: #{e.message}"
+    @execution[index] = false
+  end
+
+  def send?(type, index)
+    type != :fallback || @execution[index - 1] == false
   end
 
   def driver(*args)
@@ -73,8 +83,10 @@ class Task
     @driver.send(method, *driver_args)
   end
 
-  # todo
-  def fallback(*args); end
+  def fallback(*args)
+    type, *fallback_args = args
+    send(type, *fallback_args)
+  end
 
   def collect(*args)
     key, *read_args = args
@@ -105,26 +117,14 @@ class Workflow
   end
 end
 
-def gmail_login_actions(user, pass)
-  [
-    [:driver, :navigate, 'https://www.google.com/gmail/about/'],
-    [:driver, :click, '/html/body/header/div/div/div/a[2]'],
-
-    [:driver, :write, '//*[@id="identifierId"]', user],
-    [:driver, :click, '//*[@id="identifierNext"]/div/button'],
-
-    [:driver, :write, '//*[@id="password"]/div[1]/div/div[1]/input', pass],
-    [:driver, :click, '//*[@id="passwordNext"]/div/button'],
-
-    [:driver, :click, '//*[@id="yDmH0d"]/div[1]/div[1]/div[2]/div/div/div[3]/div/div[2]/div/div/button'],
-
-    [:collect, :html, '/html']
-  ]
-end
-
 def demo_actions
   [
     [:driver, :navigate, 'https://www.biziday.ro/'],
+
+    [:driver, :click, '//*[@id="main"]/ul/li[1]/aaa'],
+    [:fallback, :driver, :click, '//*[@id="main"]/ul/li[1]/aa'],
+    [:fallback, :driver, :click, '//*[@id="main"]/ul/li[1]/a'],
+
     [:collect, :html, '/html']
   ]
 end
