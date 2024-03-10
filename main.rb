@@ -14,9 +14,14 @@ end
 
 # simple web driver wrapper
 class Driver
+  DEFAULT_BROWSER = :chrome
+  DEFAULT_TIMEOUT_SECONDS = 10
+
   def initialize(opts = {})
-    @driver = Selenium::WebDriver.for(opts.fetch(:type, :chrome))
-    @wait = Selenium::WebDriver::Wait.new(timeout: opts.fetch(:timeout, 3))
+    browser = opts.fetch(:type, DEFAULT_BROWSER)
+    timeout = opts.fetch(:timeout, DEFAULT_TIMEOUT_SECONDS)
+    @driver = Selenium::WebDriver.for(browser)
+    @wait = Selenium::WebDriver::Wait.new(timeout:)
   end
 
   def navigate(url)
@@ -50,7 +55,8 @@ end
 # task is a container responsible with "understanding" how to execute custom web driver actions
 # !!! actions API is still a WIP
 class Task
-  def initialize(driver, state, actions)
+  def initialize(id, driver, state, actions)
+    @id = id
     @driver = driver
     @state = state
     @actions = actions
@@ -65,10 +71,12 @@ class Task
     type, *args = action
     raise ArgumentError("unknown action type: #{type}") unless respond_to?(type)
 
-    send(type, *args) if send?(type, index)
+    return unless send?(type, index)
+
+    send(type, *args)
     @execution[index] = true
   rescue DriverError => e
-    puts "action #{index} failed: #{e.message}"
+    puts "task #{@id} action #{index + 1} failed: #{e.message}"
     @execution[index] = false
   end
 
@@ -83,14 +91,14 @@ class Task
     @driver.send(method, *driver_args)
   end
 
-  def fallback(*args)
-    type, *fallback_args = args
-    send(type, *fallback_args)
-  end
-
   def collect(*args)
     key, *read_args = args
     @state[key] = @driver.read(*read_args)
+  end
+
+  def fallback(*args)
+    type, *fallback_args = args
+    send(type, *fallback_args)
   end
 end
 
@@ -105,32 +113,27 @@ class Workflow
   end
 
   def add(actions)
-    @tasks << Task.new(@driver, @state, actions)
+    @tasks << Task.new(@tasks.length + 1, @driver, @state, actions)
   end
 
   def execute
     @tasks.each(&:execute)
   end
-
-  def fork
-    new(@driver)
-  end
 end
 
-def demo_actions
+# example workflow config
+def read_article_actions(article_id)
   [
     [:driver, :navigate, 'https://www.biziday.ro/'],
 
-    [:driver, :click, '//*[@id="main"]/ul/li[1]/aaa'],
-    [:fallback, :driver, :click, '//*[@id="main"]/ul/li[1]/aa'],
-    [:fallback, :driver, :click, '//*[@id="main"]/ul/li[1]/a'],
+    [:driver, :click, "//*[@id=\"main\"]/ul/li[#{article_id}]/a"],
 
-    [:collect, :html, '/html']
+    [:collect, "article#{article_id}", '//*[@id="main"]/div/h1']
   ]
 end
 
 wf = Workflow.new
-wf.add(demo_actions)
+(1..5).each { |id| wf.add(read_article_actions(id)) }
 wf.execute
 puts wf.state
 
