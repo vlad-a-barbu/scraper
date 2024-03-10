@@ -28,7 +28,7 @@ class Driver
   end
 
   def read(xpath)
-    find(xpath, silent: true)&.attribute('innerHTML')
+    find(xpath, silent: true)&.text
   end
 
   def click(xpath)
