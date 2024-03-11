@@ -4,24 +4,13 @@ require 'selenium-webdriver'
 
 # web driver error
 class DriverError < StandardError
-  attr_reader :xpath
-
-  def initialize(msg, xpath = nil)
-    @xpath = xpath
-    super(msg)
-  end
 end
 
 # simple web driver wrapper
 class Driver
-  DEFAULT_BROWSER = :chrome
-  DEFAULT_TIMEOUT_SECONDS = 10
-
-  def initialize(opts = {})
-    browser = opts.fetch(:type, DEFAULT_BROWSER)
-    timeout = opts.fetch(:timeout, DEFAULT_TIMEOUT_SECONDS)
-    @driver = Selenium::WebDriver.for(browser)
-    @wait = Selenium::WebDriver::Wait.new(timeout:)
+  def initialize
+    @driver = Selenium::WebDriver.for(:chrome)
+    @wait = Selenium::WebDriver::Wait.new
   end
 
   def navigate(url)
@@ -29,32 +18,29 @@ class Driver
   end
 
   def write(xpath, text)
-    find(xpath)&.send_keys(text)
+    find(xpath).send_keys(text)
   end
 
   def read(xpath)
-    find(xpath, silent: true)&.text
+    find(xpath).text
   end
 
   def click(xpath)
-    find(xpath)&.click
+    find(xpath).click
   end
 
-  def find(xpath, silent: false)
-    @wait.until do
-      element = @driver.find_element(:xpath, xpath)
-      return element if element.displayed?
-    end
+  def find(xpath)
+    @wait.until { @driver.find_element(:xpath, xpath) }
   rescue Selenium::WebDriver::Error::TimeoutError
-    raise DriverError.new("element not found at xpath: #{xpath}", xpath) unless silent
-
-    nil
+    raise DriverError, "element not found at xpath #{xpath}"
   end
 end
 
 # task is a container responsible with "understanding" how to execute custom web driver actions
 # !!! actions API is still a WIP
 class Task
+  PATH_SEPARATOR = '/'
+
   def initialize(id, driver, state, actions)
     @id = id
     @driver = driver
@@ -93,13 +79,30 @@ class Task
   end
 
   def collect(*args)
-    key, *read_args = args
-    @state[key] = @driver.read(*read_args)
+    path, *read_args = args
+    value = @driver.read(*read_args)
+    store(path, value)
   end
 
   def fallback(*args)
     type, *fallback_args = args
     send(type, *fallback_args)
+  end
+
+  private
+
+  def store(path, value)
+    keys = path.split(PATH_SEPARATOR)
+    ptr = @state
+
+    keys.each_with_index do |key, index|
+      ptr[key] ||= {}
+      if index == keys.length - 1
+        ptr[key] = value
+      else
+        ptr = ptr[key]
+      end
+    end
   end
 end
 
@@ -107,8 +110,8 @@ end
 class Workflow
   attr_reader :state
 
-  def initialize(driver = nil)
-    @driver = driver || Driver.new
+  def initialize
+    @driver = Driver.new
     @state = {}
     @tasks = []
   end
@@ -120,6 +123,10 @@ class Workflow
   def execute
     @tasks.each(&:execute)
   end
+
+  def save(path)
+    IO.write(path, @state.to_json)
+  end
 end
 
 # example workflow config
@@ -127,7 +134,7 @@ def collect_actions(page)
   (1..50).map do |id|
     [
       :collect,
-      "movie#{(page - 1) * 50 + id}",
+      "page#{page}/movie#{id}",
       "//*[@id=\"pmc-gallery-vertical\"]/div[#{page < 2 ? 1 : 2}]/div/div[#{id}]/article/div[1]/div/h2"
     ]
   end
@@ -144,6 +151,7 @@ wf.add(collect_actions(2))
 wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[3]/a']])
 wf.add(collect_actions(3))
 wf.execute
-puts wf.state
+
+wf.save('./movies.json')
 
 sleep
