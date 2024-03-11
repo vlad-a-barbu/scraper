@@ -2,18 +2,21 @@
 
 require 'selenium-webdriver'
 require 'open-uri'
+require 'selenium_tor'
 
 # web driver error
 class DriverError < StandardError; end
 
 # simple web driver wrapper
 class Driver
-  DEFAULT_RETRY_COUNT = 5
+  DEFAULT_RETRY_COUNT = 3
+  DEFAULT_TIMEOUT = 10 # seconds
 
-  def initialize(proxies, retry_count = nil)
-    @retry_count = retry_count || DEFAULT_RETRY_COUNT
-    @driver = init_driver(proxies)
-    @wait = Selenium::WebDriver::Wait.new
+  def initialize(opts = {})
+    @proxies = opts.fetch(:proxies, nil)
+    @retry_count = opts.fetch(:retry_count, DEFAULT_RETRY_COUNT)
+    @wait = Selenium::WebDriver::Wait.new(timeout: opts.fetch(:timeout, DEFAULT_TIMEOUT))
+    @driver = init_driver
   end
 
   def navigate(url)
@@ -40,21 +43,27 @@ class Driver
 
   private
 
-  def init_driver(proxies)
-    proxy = get_random_proxy(proxies)
-    raise DriverError, 'could not establish a connection with the proxy servers' if proxy.nil?
-
-    options = Selenium::WebDriver::Chrome::Options.new
-    options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
-
-    Selenium::WebDriver.for :chrome, options:
+  def init_driver
+    random_proxy || tor_proxy
   end
 
-  def get_random_proxy(proxies)
+  # WIP https://gitlab.com/matzfan/selenium-tor
+  def tor_proxy
+    options = Selenium::WebDriver::Tor::Options.new
+    Selenium::WebDriver.for :tor, options:
+  end
+
+  def random_proxy
+    return if @proxies.nil?
+
     @retry_count.times do
-      proxy = proxies.sample
+      proxy = @proxies.sample
       response = healthcheck(proxy)
-      return proxy unless response.nil?
+      next if response.nil?
+
+      options = Selenium::WebDriver::Firefox::Options.new
+      options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
+      Selenium::WebDriver.for :firefox, options:
     end
     nil
   end
@@ -145,8 +154,8 @@ end
 class Workflow
   attr_reader :state
 
-  def initialize(proxies, retry_count = nil)
-    @driver = Driver.new(proxies, retry_count)
+  def initialize(opts = {})
+    @driver = Driver.new(opts)
     @state = {}
     @tasks = []
   end
@@ -175,9 +184,7 @@ def collect_actions(page)
   end
 end
 
-proxies = File.readlines("#{__dir__}/proxies/http.txt").map(&:strip)
-
-wf = Workflow.new(proxies, 999)
+wf = Workflow.new
 
 wf.add([
          [:driver, :navigate, 'https://www.rollingstone.com/tv-movies/tv-movie-lists/best-sci-fi-movies-1234893930/tank-girl-1995-2-1234928496/'],

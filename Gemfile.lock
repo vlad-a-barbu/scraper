@@ -40,6 +40,7 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
+    selenium_tor (0.1.2)
     stringio (3.1.0)
     time (0.3.0)
       date
@@ -55,6 +56,7 @@ DEPENDENCIES
   open-uri
   rubocop
   selenium-webdriver (>= 4.18.1)
+  selenium_tor (~> 0.1.2)
 
 RUBY VERSION
    ruby 3.2.3p157
