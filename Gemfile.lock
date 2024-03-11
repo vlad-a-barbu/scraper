@@ -3,10 +3,15 @@ GEM
   specs:
     ast (2.4.2)
     base64 (0.2.0)
+    date (3.3.4)
     json (2.7.1)
     language_server-protocol (3.17.0.3)
-    nokogiri (1.16.2-x64-mingw-ucrt)
-      racc (~> 1.4)
+    net-http (0.4.1)
+      uri
+    open-uri (0.4.1)
+      stringio
+      time
+      uri
     parallel (1.24.0)
     parser (3.3.0.5)
       ast (~> 2.4.1)
@@ -15,7 +20,7 @@ GEM
     rainbow (3.1.1)
     regexp_parser (2.9.0)
     rexml (3.2.6)
-    rubocop (1.61.0)
+    rubocop (1.62.1)
       json (~> 2.3)
       language_server-protocol (>= 3.17.0)
       parallel (~> 1.10)
@@ -23,10 +28,10 @@ GEM
       rainbow (>= 2.2.2, < 4.0)
       regexp_parser (>= 1.8, < 3.0)
       rexml (>= 3.2.5, < 4.0)
-      rubocop-ast (>= 1.30.0, < 2.0)
+      rubocop-ast (>= 1.31.1, < 2.0)
       ruby-progressbar (~> 1.7)
       unicode-display_width (>= 2.4.0, < 3.0)
-    rubocop-ast (1.31.1)
+    rubocop-ast (1.31.2)
       parser (>= 3.3.0.4)
     ruby-progressbar (1.13.0)
     rubyzip (2.3.2)
@@ -35,19 +40,24 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 3.0)
       websocket (~> 1.0)
+    stringio (3.1.0)
+    time (0.3.0)
+      date
     unicode-display_width (2.5.0)
+    uri (0.13.0)
     websocket (1.2.10)
 
 PLATFORMS
   x64-mingw-ucrt
 
 DEPENDENCIES
-  nokogiri (>= 1.16.2)
+  net-http
+  open-uri
   rubocop
   selenium-webdriver (>= 4.18.1)
 
 RUBY VERSION
-   ruby 3.3.0p0
+   ruby 3.2.3p157
 
 BUNDLED WITH
-   2.5.6
+   2.4.19

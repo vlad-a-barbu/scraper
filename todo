@@ -1,4 +1,0 @@
--> store wf states to db
--> proxies
--> wf scheduler
--> rails web app that allows users to define & execute custom workflows

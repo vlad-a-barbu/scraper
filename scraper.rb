@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
 require 'selenium-webdriver'
+require 'open-uri'
 
 # web driver error
-class DriverError < StandardError
-end
+class DriverError < StandardError; end
 
 # simple web driver wrapper
 class Driver
-  def initialize
-    @driver = Selenium::WebDriver.for(:chrome)
+  DEFAULT_RETRY_COUNT = 5
+
+  def initialize(proxies, retry_count = nil)
+    @retry_count = retry_count || DEFAULT_RETRY_COUNT
+    @driver = init_driver(proxies)
     @wait = Selenium::WebDriver::Wait.new
   end
 
@@ -33,6 +36,38 @@ class Driver
     @wait.until { @driver.find_element(:xpath, xpath) }
   rescue Selenium::WebDriver::Error::TimeoutError
     raise DriverError, "element not found at xpath #{xpath}"
+  end
+
+  private
+
+  def init_driver(proxies)
+    proxy = get_random_proxy(proxies)
+    raise DriverError, 'could not establish a connection with the proxy servers' if proxy.nil?
+
+    options = Selenium::WebDriver::Chrome::Options.new
+    options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
+
+    Selenium::WebDriver.for :chrome, options:
+  end
+
+  def get_random_proxy(proxies)
+    @retry_count.times do
+      proxy = proxies.sample
+      response = healthcheck(proxy)
+      return proxy unless response.nil?
+    end
+    nil
+  end
+
+  def healthcheck(proxy)
+    puts "proxy healthcheck: #{proxy}"
+    URI.open('https://api.ipify.org?format=json', proxy: "http://#{proxy}") do |response|
+      response.each_line { |line| puts line }
+      return response
+    end
+  rescue StandardError => e
+    puts "healthcheck failed: #{e.message}"
+    nil
   end
 end
 
@@ -110,8 +145,8 @@ end
 class Workflow
   attr_reader :state
 
-  def initialize
-    @driver = Driver.new
+  def initialize(proxies, retry_count = nil)
+    @driver = Driver.new(proxies, retry_count)
     @state = {}
     @tasks = []
   end
@@ -140,18 +175,22 @@ def collect_actions(page)
   end
 end
 
-wf = Workflow.new
+proxies = File.readlines("#{__dir__}/proxies/http.txt").map(&:strip)
+
+wf = Workflow.new(proxies, 999)
+
 wf.add([
          [:driver, :navigate, 'https://www.rollingstone.com/tv-movies/tv-movie-lists/best-sci-fi-movies-1234893930/tank-girl-1995-2-1234928496/'],
          [:driver, :click, '//*[@id="onetrust-accept-btn-handler"]']
        ])
 wf.add(collect_actions(1))
+
 wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[2]/a']])
 wf.add(collect_actions(2))
+
 wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[3]/a']])
 wf.add(collect_actions(3))
+
 wf.execute
 
 wf.save('./movies.json')
-
-sleep

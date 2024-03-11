@@ -1,4 +1,6 @@
-ruby '3.3.0'
+# frozen_string_literal: true
+
+ruby '3.2.3'
 
 source 'https://rubygems.org/'
 
@@ -6,4 +8,6 @@ gem 'rubocop'
 
 gem 'selenium-webdriver', '>= 4.18.1'
 
-gem 'nokogiri', '>= 1.16.2'
+gem 'net-http'
+
+gem 'open-uri'
