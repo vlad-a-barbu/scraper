@@ -47,14 +47,13 @@ class Driver
     random_proxy || tor_proxy
   end
 
-  # WIP https://gitlab.com/matzfan/selenium-tor
   def tor_proxy
     options = Selenium::WebDriver::Tor::Options.new
     Selenium::WebDriver.for :tor, options:
   end
 
   def random_proxy
-    return if @proxies.nil?
+    return nil if @proxies.nil?
 
     @retry_count.times do
       proxy = @proxies.sample
@@ -65,6 +64,7 @@ class Driver
       options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
       Selenium::WebDriver.for :firefox, options:
     end
+
     nil
   end
 
