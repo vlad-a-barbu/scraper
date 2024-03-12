@@ -44,12 +44,23 @@ class Driver
   private
 
   def init_driver
-    random_proxy || tor_proxy
+    random_proxy || tor_proxy || local
   end
 
+  def local
+    options = Selenium::WebDriver::Firefox::Options.new
+    options.add_argument('--headless')
+    Selenium::WebDriver.for :firefox, options:
+  end
+
+  # open tor browser locally and enable automatic tor connection for this to work
   def tor_proxy
     options = Selenium::WebDriver::Tor::Options.new
+    options.add_argument('--headless')
     Selenium::WebDriver.for :tor, options:
+  rescue StandardError => e
+    puts "tor proxy initialization failed: #{e.message}"
+    nil
   end
 
   def random_proxy
@@ -57,10 +68,10 @@ class Driver
 
     @retry_count.times do
       proxy = @proxies.sample
-      response = healthcheck(proxy)
-      next if response.nil?
+      next if healthcheck(proxy).nil?
 
       options = Selenium::WebDriver::Firefox::Options.new
+      options.add_argument('--headless')
       options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
       Selenium::WebDriver.for :firefox, options:
     end
@@ -173,31 +184,13 @@ class Workflow
   end
 end
 
-# example workflow config
-def collect_actions(page)
-  (1..50).map do |id|
-    [
-      :collect,
-      "page#{page}/movie#{id}",
-      "//*[@id=\"pmc-gallery-vertical\"]/div[#{page < 2 ? 1 : 2}]/div/div[#{id}]/article/div[1]/div/h2"
-    ]
-  end
-end
-
 wf = Workflow.new
 
 wf.add([
-         [:driver, :navigate, 'https://www.rollingstone.com/tv-movies/tv-movie-lists/best-sci-fi-movies-1234893930/tank-girl-1995-2-1234928496/'],
-         [:driver, :click, '//*[@id="onetrust-accept-btn-handler"]']
+         [:driver, :navigate, 'https://api.ipify.org?format=json'],
+         [:collect, :html, '/html']
        ])
-wf.add(collect_actions(1))
-
-wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[2]/a']])
-wf.add(collect_actions(2))
-
-wf.add([[:driver, :click, '//*[@id="pmc-gallery-vertical"]/div[3]/a']])
-wf.add(collect_actions(3))
 
 wf.execute
 
-wf.save('./movies.json')
+wf.save('ip.json')
