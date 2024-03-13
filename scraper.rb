@@ -147,7 +147,7 @@ class Task
   private
 
   def store(path, value)
-    keys = path.split(PATH_SEPARATOR)
+    keys = path.to_s.split(PATH_SEPARATOR)
     ptr = @state
 
     keys.each_with_index do |key, index|
