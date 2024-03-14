@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'selenium-webdriver'
-require 'open-uri'
 require 'selenium_tor'
 
 # web driver error
@@ -9,13 +8,8 @@ class DriverError < StandardError; end
 
 # simple web driver wrapper
 class Driver
-  DEFAULT_RETRY_COUNT = 3
-  DEFAULT_TIMEOUT = 10 # seconds
-
-  def initialize(opts = {})
-    @proxies = opts.fetch(:proxies, nil)
-    @retry_count = opts.fetch(:retry_count, DEFAULT_RETRY_COUNT)
-    @wait = Selenium::WebDriver::Wait.new(timeout: opts.fetch(:timeout, DEFAULT_TIMEOUT))
+  def initialize
+    @wait = Selenium::WebDriver::Wait.new
     @driver = init_driver
   end
 
@@ -38,64 +32,26 @@ class Driver
   def find(xpath)
     @wait.until { @driver.find_element(:xpath, xpath) }
   rescue Selenium::WebDriver::Error::TimeoutError
-    raise DriverError, "element not found at xpath #{xpath}"
+    raise DriverError, "element not found at xpath: #{xpath}"
+  end
+
+  def quit
+    @driver.quit
   end
 
   private
 
   def init_driver
-    random_proxy || tor_proxy || local
-  end
-
-  def local
-    options = Selenium::WebDriver::Firefox::Options.new
-    options.add_argument('--headless')
-    Selenium::WebDriver.for :firefox, options:
-  end
-
-  # open tor browser locally and enable automatic tor connection for this to work
-  def tor_proxy
     options = Selenium::WebDriver::Tor::Options.new
     options.add_argument('--headless')
     Selenium::WebDriver.for :tor, options:
   rescue StandardError => e
-    puts "tor proxy initialization failed: #{e.message}"
-    nil
-  end
-
-  def random_proxy
-    return nil if @proxies.nil?
-
-    @retry_count.times do
-      proxy = @proxies.sample
-      next if healthcheck(proxy).nil?
-
-      options = Selenium::WebDriver::Firefox::Options.new
-      options.add_argument('--headless')
-      options.proxy = Selenium::WebDriver::Proxy.new(http: proxy)
-      Selenium::WebDriver.for :firefox, options:
-    end
-
-    nil
-  end
-
-  def healthcheck(proxy)
-    puts "proxy healthcheck: #{proxy}"
-    URI.open('https://api.ipify.org?format=json', proxy: "http://#{proxy}") do |response|
-      response.each_line { |line| puts line }
-      return response
-    end
-  rescue StandardError => e
-    puts "healthcheck failed: #{e.message}"
-    nil
+    raise DriverError, "driver initialization failed: #{e.message}"
   end
 end
 
 # task is a container responsible with "understanding" how to execute custom web driver actions
-# !!! actions API is still a WIP
 class Task
-  PATH_SEPARATOR = '/'
-
   def initialize(id, driver, state, actions)
     @id = id
     @driver = driver
@@ -108,11 +64,13 @@ class Task
     @actions.each_with_index { |action, index| execute_action(action, index) }
   end
 
+  private
+
   def execute_action(action, index)
     type, *args = action
-    raise ArgumentError("unknown action type: #{type}") unless respond_to?(type)
+    raise ArgumentError("unknown action type: #{type}") unless respond_to?(type, true)
 
-    return unless send?(type, index)
+    return if type == :fallback && @execution[index - 1] == true
 
     puts "executing task #{@id} action #{index + 1}"
     send(type, *args)
@@ -120,10 +78,6 @@ class Task
   rescue DriverError => e
     puts "task #{@id} action #{index + 1} failed: #{e.message}"
     @execution[index] = false
-  end
-
-  def send?(type, index)
-    type != :fallback || @execution[index - 1] == false
   end
 
   def driver(*args)
@@ -134,9 +88,9 @@ class Task
   end
 
   def collect(*args)
-    path, *read_args = args
+    store_path, *read_args = args
     value = @driver.read(*read_args)
-    store(path, value)
+    store(store_path, value)
   end
 
   def fallback(*args)
@@ -144,10 +98,8 @@ class Task
     send(type, *fallback_args)
   end
 
-  private
-
   def store(path, value)
-    keys = path.to_s.split(PATH_SEPARATOR)
+    keys = path.to_s.split('/')
     ptr = @state
 
     keys.each_with_index do |key, index|
@@ -163,10 +115,8 @@ end
 
 # web automation workflow
 class Workflow
-  attr_reader :state
-
-  def initialize(opts = {})
-    @driver = Driver.new(opts)
+  def initialize
+    @driver = Driver.new
     @state = {}
     @tasks = []
   end
@@ -177,6 +127,10 @@ class Workflow
 
   def execute
     @tasks.each(&:execute)
+    @driver.quit
+  rescue StandardError => e
+    puts "workflow execution failed: #{e.message}"
+    @driver.quit
   end
 
   def save(path)
@@ -188,7 +142,8 @@ wf = Workflow.new
 
 wf.add([
          [:driver, :navigate, 'https://api.ipify.org?format=json'],
-         [:collect, :html, '/html']
+         [:collect, :ip, '/html/body/div/div/div/div[1]/div/div/div[2]/table/tbody/tr/td[2]'],
+         [:fallback, :collect, :ip, '/html']
        ])
 
 wf.execute

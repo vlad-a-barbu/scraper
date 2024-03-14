@@ -1,7 +1,6 @@
 FROM ruby:3.2.3
 
-RUN apt update -y \
-    && apt install -y wget firefox-esr xvfb # xvfb for headless
+RUN apt update -y && apt install -y wget firefox-esr xvfb
 
 ARG WORKDIR=/scraper
 
