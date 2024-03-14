@@ -6,6 +6,8 @@ source 'https://rubygems.org/'
 
 gem 'rubocop'
 
-gem 'selenium-webdriver', '>= 4.18.1'
+gem 'selenium-webdriver', '= 4.16.0'
 
-gem 'selenium_tor', '~> 0.1.2'
+gem 'selenium_tor', '= 0.1.3'
+
+gem 'sinatra', '= 4.0.0'
