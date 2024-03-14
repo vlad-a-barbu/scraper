@@ -39,7 +39,12 @@ class Task
 
   def collect(*args)
     store_path, *read_args = args
-    value = @driver.read(*read_args)
+    all, rest = *read_args
+    value = if all.to_sym.eql?(:all)
+              @driver.read(*rest, true)
+            else
+              @driver.read(*read_args)
+            end
     store(store_path, value)
   end
 

@@ -21,16 +21,20 @@ class Driver
     find(xpath).send_keys(text)
   end
 
-  def read(xpath)
-    find(xpath).text
+  def read(xpath, multiple: false)
+    find(xpath, multiple:).map(&:text)
   end
 
   def click(xpath)
     find(xpath).click
   end
 
-  def find(xpath)
-    @wait.until { @driver.find_element(:xpath, xpath) }
+  def find(xpath, multiple: false)
+    if multiple
+      @wait.until { @driver.find_elements(:xpath, xpath) }
+    else
+      @wait.until { [@driver.find_element(:xpath, xpath)] }
+    end
   rescue Selenium::WebDriver::Error::TimeoutError
     raise DriverError, "element not found at xpath: #{xpath}"
   end

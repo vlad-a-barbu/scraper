@@ -14,4 +14,4 @@ wf.add([
 
 wf.execute
 
-wf.save('ip.json')
+wf.save("#{__dir__}/ip.json")
