@@ -10,7 +10,7 @@ class Task
   end
 
   def execute
-    @execution = {}
+    @history = {}
     @actions.each_with_index { |action, index| execute_action(action, index) }
   end
 
@@ -20,14 +20,14 @@ class Task
     type, *args = action
     raise ArgumentError("unknown action type: #{type}") unless respond_to?(type, true)
 
-    return if type == :fallback && @execution[index - 1] == true
+    return if type == :fallback && @history[index - 1] == true
 
     puts "executing task #{@id} action #{index + 1}"
     send(type, *args)
-    @execution[index] = true
+    @history[index] = true
   rescue DriverError => e
     puts "task #{@id} action #{index + 1} failed: #{e.message}"
-    @execution[index] = false
+    @history[index] = false
   end
 
   def driver(*args)
@@ -39,11 +39,12 @@ class Task
 
   def collect(*args)
     store_path, *read_args = args
-    all, rest = *read_args
+    all, selector = *read_args
     value = if all.to_sym.eql?(:all)
-              @driver.read(*rest, true)
+              @driver.read(selector, multiple: true)
             else
-              @driver.read(*read_args)
+              selector = *read_args
+              @driver.read(selector, multiple: false)
             end
     store(store_path, value)
   end

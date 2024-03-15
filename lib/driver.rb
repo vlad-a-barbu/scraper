@@ -17,26 +17,23 @@ class Driver
     @driver.navigate.to(url)
   end
 
-  def write(xpath, text)
-    find(xpath).send_keys(text)
+  def write(selector, text)
+    find(selector).send_keys(text)
   end
 
-  def read(xpath, multiple: false)
-    find(xpath, multiple:).map(&:text)
+  def read(selector, multiple)
+    find(selector, multiple:).map(&:text)
   end
 
-  def click(xpath)
-    find(xpath).click
+  def click(selector)
+    find(selector).click
   end
 
-  def find(xpath, multiple: false)
-    if multiple
-      @wait.until { @driver.find_elements(:xpath, xpath) }
-    else
-      @wait.until { [@driver.find_element(:xpath, xpath)] }
-    end
+  def find(selector, multiple: false)
+    how, what = *selector
+    find_internal(how, what, multiple)
   rescue Selenium::WebDriver::Error::TimeoutError
-    raise DriverError, "element not found at xpath: #{xpath}"
+    raise DriverError, "element not found by #{how}: #{what}"
   end
 
   def quit
@@ -51,5 +48,16 @@ class Driver
     Selenium::WebDriver.for :tor, options:
   rescue StandardError => e
     raise DriverError, "driver initialization failed: #{e.message}"
+  end
+
+  def find_internal(how, what, multiple)
+    if multiple
+      @wait.until do
+        elements = @driver.find_elements(how, what)
+        return elements unless elements.empty?
+      end
+    else
+      @wait.until { [@driver.find_element(how, what)] }
+    end
   end
 end
