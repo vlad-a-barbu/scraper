@@ -20,7 +20,7 @@ class Task
     type, *args = action
     raise ArgumentError("unknown action type: #{type}") unless respond_to?(type, true)
 
-    return if type == :fallback && @history[index - 1] == true
+    return if type.to_sym == :fallback && @history[index - 1] == true
 
     puts "executing task #{@id} action #{index + 1}"
     send(type, *args)

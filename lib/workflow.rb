@@ -5,8 +5,10 @@ require_relative 'task'
 
 # web automation workflow
 class Workflow
-  def initialize
-    @driver = Driver.new
+  attr_reader :state
+
+  def initialize(driver)
+    @driver = driver
     @state = {}
     @tasks = []
   end
@@ -17,10 +19,8 @@ class Workflow
 
   def execute
     @tasks.each(&:execute)
-    @driver.quit
   rescue StandardError => e
     puts "workflow execution failed: #{e.message}"
-    @driver.quit
   end
 
   def save(path)

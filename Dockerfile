@@ -21,3 +21,7 @@ RUN sh -c 'tar -x geckodriver -zf geckodriver.tar.gz -O > /usr/bin/geckodriver'
 RUN chmod +x /usr/bin/geckodriver
 
 RUN bundle install
+
+EXPOSE 9999
+
+CMD ["bundle", "exec", "ruby", "server/server.rb", "-o", "0.0.0.0", "-p", "9999"]
